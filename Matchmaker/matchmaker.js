@@ -134,9 +134,12 @@ function getAvailableCirrusServer() {
 }
 
 if(enableRESTAPI) {
+	var corsOptions = {
+		origin: '*',
+  	}
 	// Handle REST signalling server only request.
-	app.options('/signallingserver', cors())
-	app.get('/signallingserver', cors(),  (req, res) => {
+	app.options('/signallingserver', cors(corsOptions))
+	app.get('/signallingserver', cors(corsOptions),  (req, res) => {
 		cirrusServer = getAvailableCirrusServer();
 		if (cirrusServer != undefined) {
 			res.json({ signallingServer: `${cirrusServer.address}:${cirrusServer.port}`});
