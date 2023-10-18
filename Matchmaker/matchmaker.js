@@ -148,6 +148,27 @@ if(enableRESTAPI) {
 			res.json({ signallingServer: '', error: 'No signalling servers available'});
 		}
 	});
+
+	app.get('/stats', cors(corsOptions),  (req, res) => {
+		var available_servers = [];
+		var busy_servers = [];
+		for (cirrusServer of cirrusServers.values()) {
+			if (cirrusServer.numConnectedClients === 0 && cirrusServer.ready === true) {
+
+				// Check if we had at least 10 seconds since the last redirect, avoiding the
+				// chance of redirecting 2+ users to the same SS before they click Play.
+				// In other words, give the user 10 seconds to click play button the claim the server.
+				if( cirrusServer.hasOwnProperty('lastRedirect')) {
+					if( ((Date.now() - cirrusServer.lastRedirect) / 1000) < 10 )
+						continue;
+				}
+				available_servers.push(`${cirrusServer.address}:${cirrusServer.port}`);
+			} else {
+				busy_servers.push(`${cirrusServer.address}:${cirrusServer.port}`);
+			}
+		}
+		res.json({ available_servers: available_servers, busy_servers: busy_servers});
+	});
 }
 
 if(enableRedirectionLinks) {
