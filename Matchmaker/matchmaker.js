@@ -159,8 +159,10 @@ if(enableRESTAPI) {
 				// chance of redirecting 2+ users to the same SS before they click Play.
 				// In other words, give the user 10 seconds to click play button the claim the server.
 				if( cirrusServer.hasOwnProperty('lastRedirect')) {
-					if( ((Date.now() - cirrusServer.lastRedirect) / 1000) < 10 )
+					if( ((Date.now() - cirrusServer.lastRedirect) / 1000) < 10 ){
+						busy_servers.push(`${cirrusServer.address}:${cirrusServer.port}`);
 						continue;
+					}
 				}
 				available_servers.push(`${cirrusServer.address}:${cirrusServer.port}`);
 			} else {
