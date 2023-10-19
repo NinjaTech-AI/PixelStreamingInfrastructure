@@ -71,7 +71,7 @@ if (config.UseHTTPS) {
 			if (req.get('Host')) {
 				var hostAddressParts = req.get('Host').split(':');
 				var hostAddress = hostAddressParts[0];
-				if (httpsPort != 443) {
+				if (httpsPort != 9443) {
 					hostAddress = `${hostAddress}:${httpsPort}`;
 				}
 				return res.redirect(['https://', hostAddress, req.originalUrl].join(''));
@@ -83,8 +83,8 @@ if (config.UseHTTPS) {
 		next();
 	});
 
-	https.listen(443, function () {
-		console.log('Https listening on 443');
+	https.listen(9443, function () {
+		console.log('Https listening on 9443');
 	});
 }
 
