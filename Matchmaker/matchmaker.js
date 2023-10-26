@@ -13,6 +13,8 @@ const defaultConfig = {
 	LogToFile: true,
 	
 	EnableWebserver: true,
+
+	CognitoAuthEnabled: false
 };
 
 
@@ -40,6 +42,7 @@ if (config.LogToFile) {
 config.CognitoUserPoolID=process.env.COGNITO_USER_POOL_ID
 config.CognitoClientID=process.env.COGNITO_CLIENT_ID
 config.CognitoRegion=process.env.COGNITO_REGION
+config.CognitoAuthEnabled = (process.env.COGNITO_AUTH_ENABLED.toLowerCase() === 'true')
 
 var passport = require("passport");
 var passportJWT = require("passport-jwt");
@@ -185,10 +188,20 @@ if(enableRESTAPI) {
   	}
 	// Handle REST signalling server only request.
 	app.options('/signallingserver', cors(corsOptions))
-	app.get('/signallingserver', cors(corsOptions), passport.authenticate('jwt', {session: false}), async  (req, res) => {
+	app.get('/signallingserver', cors(corsOptions),
+	function(req, res, next) {
+		if(config.CognitoAuthEnabled) {
+			passport.authenticate('jwt', {session: false}, function (err, user, info) {
+				console.log("Authenticated");
+				next();
+			})(req, res, next);
+		}else {
+			next();
+		}
+	}, async  (req, res) => {
 		try {
 			// A valid JWT is expected in the HTTP header "authorization"
-			await validateToken(req)
+			await validateCognitoToken(req)
 		} catch (err) {
 			return res.status(401).json({ statusCode: 401, message: "Invalid Token" });
 		}
@@ -225,22 +238,36 @@ if(enableRESTAPI) {
 	});
 }
 
-async function validateToken(req) {
-	var token = req.header("authorization");
-	token = token.replace('Bearer ', '');
-	await cognitoJWTVerifier.verify(token);
+async function validateCognitoToken(req) {
+	if(config.CognitoAuthEnabled) {
+		var token = req.header("authorization");
+		if(token == null){
+			throw Error('null token');
+		}
+		token = token.replace('Bearer ', '');
+		await cognitoJWTVerifier.verify(token);
+	}
 }
 
 if(enableRedirectionLinks) {
 	// Handle standard URL.
-	app.get('/', passport.authenticate('jwt', {session: false}), async (req, res) => {
+	app.get('/',
+		function(req, res, next) {
+			if(config.CognitoAuthEnabled) {
+				passport.authenticate('jwt', {session: false}, function (err, user, info) {
+					console.log("Authenticated");
+					next();
+				})(req, res, next);
+			}else {
+				next();
+			}
+		}, async (req, res) => {
 		try {
 			// A valid JWT is expected in the HTTP header "authorization"
-			await validateToken(req)
+			await validateCognitoToken(req)
 		} catch (err) {
 			return res.status(401).json({ statusCode: 401, message: "Invalid Token" });
 		}
-
 		cirrusServer = getAvailableCirrusServer();
 		if (cirrusServer != undefined) {
 			res.redirect(`http://${cirrusServer.address}:${cirrusServer.port}/`);

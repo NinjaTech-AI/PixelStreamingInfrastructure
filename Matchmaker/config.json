@@ -4,6 +4,7 @@
 	"MatchmakerPort": 9999,
 	"LogToFile": true,
 	"EnableWebserver": true,
+	"CognitoAuthEnabled": false,
 	"CognitoUserPoolID": "",
 	"CognitoClientID": "",
 	"CognitoRegion": "us-west-2"
