@@ -15,9 +15,10 @@ const defaultConfig = {
 	EnableWebserver: true,
 };
 
+
 // Similar to the Signaling Server (SS) code, load in a config.json file for the MM parameters
 const argv = require('yargs').argv;
-
+require('dotenv').config();
 var configFile = (typeof argv.configFile != 'undefined') ? argv.configFile.toString() : 'config.json';
 console.log(`configFile ${configFile}`);
 const config = require('./modules/config.js').init(configFile, defaultConfig);
@@ -31,10 +32,55 @@ const fs = require('fs');
 const path = require('path');
 const logging = require('./modules/logging.js');
 logging.RegisterConsoleLogger();
-
 if (config.LogToFile) {
 	logging.RegisterFileLogger('./logs');
 }
+
+// Passport Authentication for Cognito
+config.CognitoUserPoolID=process.env.COGNITO_USER_POOL_ID
+config.CognitoClientID=process.env.COGNITO_CLIENT_ID
+config.CognitoRegion=process.env.COGNITO_REGION
+
+var passport = require("passport");
+var passportJWT = require("passport-jwt");
+var ExtractJwt = passportJWT.ExtractJwt;
+var JwtStrategy = passportJWT.Strategy;
+const jwksRsa = require('jwks-rsa');
+const CognitoJwtVerifier = require('aws-jwt-verify').CognitoJwtVerifier;
+const userPoolIdURL = `https://cognito-idp.${config.CognitoRegion}.amazonaws.com/${config.CognitoUserPoolID}`
+const cognitoJWTVerifier = new CognitoJwtVerifier({
+	region: config.CognitoRegion, // The AWS region where your Cognito user pool is located.
+	userPoolId: config.CognitoUserPoolID, // The ID of your Cognito user pool.
+	clientId: config.CognitoClientID,
+	tokenUse: "access",
+});
+var jwtOptions = {
+	jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),//req => req.headers.authorization, // The function that extracts the JWT token from the request.
+	issuer: userPoolIdURL, // The issuer of the JWT token.
+	//audience: clientID, // The audience of the JWT token.
+	scope: "aws.cognito.signin.user.admin openid profile email",
+	algorithms: ['RS256'], // The algorithms used to sign the JWT token.
+	secretOrKeyProvider: jwksRsa.passportJwtSecret({
+		cache: true,
+		rateLimit: true,
+		jwksRequestsPerMinute: 3,
+		jwksUri: `https://cognito-idp.${config.CognitoRegion}.amazonaws.com/${config.CognitoUserPoolID}/.well-known/jwks.json`,
+		handleSigningKeyError: (err, cb) => {
+			if (err instanceof jwksRsa.SigningKeyNotFoundError) {
+				return cb(new Error('This is bad'));
+			}
+			return cb(err);
+		}
+	}),
+}
+
+var strategy = new JwtStrategy(jwtOptions, function (jwtPayload, next) {
+	next(null, jwtPayload.username);
+});
+
+passport.use(strategy);
+app.use(passport.initialize());
+
 
 // A list of all the Cirrus server which are connected to the Matchmaker.
 var cirrusServers = new Map();
@@ -139,7 +185,13 @@ if(enableRESTAPI) {
   	}
 	// Handle REST signalling server only request.
 	app.options('/signallingserver', cors(corsOptions))
-	app.get('/signallingserver', cors(corsOptions),  (req, res) => {
+	app.get('/signallingserver', cors(corsOptions), passport.authenticate('jwt', {session: false}), async  (req, res) => {
+		try {
+			// A valid JWT is expected in the HTTP header "authorization"
+			await validateToken(req)
+		} catch (err) {
+			return res.status(401).json({ statusCode: 401, message: "Invalid Token" });
+		}
 		cirrusServer = getAvailableCirrusServer();
 		if (cirrusServer != undefined) {
 			res.json({ signallingServer: `${cirrusServer.address}:${cirrusServer.port}`});
@@ -173,13 +225,25 @@ if(enableRESTAPI) {
 	});
 }
 
+async function validateToken(req) {
+	var token = req.header("authorization");
+	token = token.replace('Bearer ', '');
+	await cognitoJWTVerifier.verify(token);
+}
+
 if(enableRedirectionLinks) {
 	// Handle standard URL.
-	app.get('/', (req, res) => {
+	app.get('/', passport.authenticate('jwt', {session: false}), async (req, res) => {
+		try {
+			// A valid JWT is expected in the HTTP header "authorization"
+			await validateToken(req)
+		} catch (err) {
+			return res.status(401).json({ statusCode: 401, message: "Invalid Token" });
+		}
+
 		cirrusServer = getAvailableCirrusServer();
 		if (cirrusServer != undefined) {
 			res.redirect(`http://${cirrusServer.address}:${cirrusServer.port}/`);
-			//console.log(req);
 			console.log(`Redirect to ${cirrusServer.address}:${cirrusServer.port}`);
 		} else {
 			sendRetryResponse(res);

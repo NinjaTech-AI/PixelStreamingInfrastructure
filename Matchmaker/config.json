@@ -3,5 +3,8 @@
 	"UseHTTPS": false,
 	"MatchmakerPort": 9999,
 	"LogToFile": true,
-	"EnableWebserver": true
+	"EnableWebserver": true,
+	"CognitoUserPoolID": "",
+	"CognitoClientID": "",
+	"CognitoRegion": "us-west-2"
 }
