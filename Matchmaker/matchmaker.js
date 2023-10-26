@@ -42,7 +42,7 @@ if (config.LogToFile) {
 config.CognitoUserPoolID=process.env.COGNITO_USER_POOL_ID
 config.CognitoClientID=process.env.COGNITO_CLIENT_ID
 config.CognitoRegion=process.env.COGNITO_REGION
-config.CognitoAuthEnabled = (process.env.COGNITO_AUTH_ENABLED.toLowerCase() === 'true')
+config.CognitoAuthEnabled = (process.env.COGNITO_AUTH_ENABLED ? process.env.COGNITO_AUTH_ENABLED.toLowerCase() === 'true' : false)
 
 var passport = require("passport");
 var passportJWT = require("passport-jwt");
